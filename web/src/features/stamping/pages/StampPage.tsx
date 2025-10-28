@@ -582,13 +582,24 @@ export default function StampPage() {
         privacy: receiptData.privacy === 'hash-only' ? 'public' : receiptData.privacy,
       };
 
-      const reconstructed = await sdk.reconstructFile(compliantReceipt, null);
-      const reconstructedText = new TextDecoder().decode(reconstructed.data);
+      const tx = await sdk.getTransaction(receiptData.transactionId);
+      if (!tx) {
+        throw new Error('Transaction not found on the blockchain.');
+      }
 
-      if (reconstructedText.includes(fileHash)) {
-        setVerificationResult(`CONFIRMED: The file hash matches the hash in the receipt. Timestamp: ${new Date(receiptData.timestamp).toLocaleString()}`);
+      // Assuming the hash is in the first OP_RETURN output
+      const opReturnOutput = tx.outputs.find(output => output.scriptPublicKey.startsWith('6a'));
+      if (!opReturnOutput) {
+        throw new Error('No OP_RETURN output found in the transaction.');
+      }
+
+      // Extract the hash from the OP_RETURN script
+      const blockchainHash = opReturnOutput.scriptPublicKey.substring(4); // Remove OP_RETURN prefix and data length
+
+      if (blockchainHash === fileHash) {
+        setVerificationResult(`CONFIRMED: The file hash matches the hash in the blockchain. Timestamp: ${new Date(receiptData.timestamp).toLocaleString()}`);
       } else {
-        setVerificationResult('ERROR: The file hash does not match the hash in the receipt.');
+        setVerificationResult('ERROR: The file hash does not match the hash in the blockchain.');
       }
     } catch (e) {
       setVerificationResult(`ERROR: ${(e as Error).message}`);
