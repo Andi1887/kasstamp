@@ -479,7 +479,7 @@ export default function StampPage() {
           { mode: 'public', compression: false, priorityFee },
         );
 
-        const newReceipts: AugmentedReceipt[] = result.receipts.map((sdkReceipt) => {
+        const newReceipts = result.receipts.map((sdkReceipt): AugmentedReceipt => {
           // Since all hashes are combined into one transaction, we create a
           // single receipt that lists all the hashes.
           const allHashes = [
@@ -508,15 +508,23 @@ export default function StampPage() {
             priorityFee,
           },
         );
-        const augmentedReceipts = result.receipts.map((receipt, index) => {
+        const augmentedReceipts: AugmentedReceipt[] = result.receipts.map((receipt, index) => {
+          let privacy: PrivacyMode = 'public';
+          if (receipt.privacy === 'private') {
+            privacy = 'private';
+          }
+          const augmented: AugmentedReceipt = {
+            ...receipt,
+            privacy,
+          };
+
           if (index < fileUpload.attachments.length) {
-            return { ...receipt, originalFileSize: fileUpload.attachments[index].size };
-          }
-          if (hasText && index === result.receipts.length - 1) {
+            augmented.originalFileSize = fileUpload.attachments[index].size;
+          } else if (hasText && index === result.receipts.length - 1) {
             const textSize = new Blob([text]).size;
-            return { ...receipt, originalFileSize: textSize };
+            augmented.originalFileSize = textSize;
           }
-          return receipt;
+          return augmented;
         });
 
         setReceipt(augmentedReceipts.length === 1 ? augmentedReceipts[0] : augmentedReceipts);

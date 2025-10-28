@@ -11,7 +11,6 @@ export {
   stampMultipleArtifacts,
   getCurrentEstimation,
   clearEstimation,
-  type StampingModeWeb,
   type StampingEstimation,
   type StampingOptions,
 } from './StampingService';

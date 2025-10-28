@@ -16,9 +16,9 @@ export interface CachedEstimation {
 }
 
 // Augmented receipt with UI metadata, extending the SDK's receipt
-export interface AugmentedReceipt extends StampingReceipt {
+export type AugmentedReceipt = Omit<StampingReceipt, 'privacy'> & {
+  privacy: PrivacyMode;
   filename?: string;
-  mode?: PrivacyMode;
   fileHash?: string;
   originalFileSize?: number;
-}
+};
