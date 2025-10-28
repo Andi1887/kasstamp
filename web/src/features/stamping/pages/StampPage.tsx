@@ -8,7 +8,7 @@ import { formatExactAmount } from '@/shared/utils/formatBalance';
 import { useWallet } from '@/shared/hooks/useWallet';
 import { pageLogger } from '@/core/utils/logger';
 import { stampMultipleArtifacts } from '../services';
-import { StampingReceipt } from '@kasstamp/sdk';
+import type { StampingReceipt } from '@kasstamp/sdk';
 import {
   useEstimation,
   useFileUpload,
@@ -570,12 +570,16 @@ export default function StampPage() {
     try {
       const fileHash = await computeSHA256(verificationFile);
       const receiptText = await verificationReceipt.text();
-      const receiptData = decodeReceipt(receiptText);
+      const receiptData = decodeReceipt(receiptText) as AugmentedReceipt;
 
       const sdk = walletService.getSDK();
+      if (!sdk) {
+        throw new Error('SDK not initialized');
+      }
       const reconstructed = await sdk.reconstructFile(receiptData, null);
+      const reconstructedText = new TextDecoder().decode(reconstructed.data);
 
-      if (reconstructed.hash === fileHash) {
+      if (reconstructedText.includes(fileHash)) {
         setVerificationResult(`CONFIRMED: The file hash matches the hash in the receipt. Timestamp: ${new Date(receiptData.timestamp).toLocaleString()}`);
       } else {
         setVerificationResult('ERROR: The file hash does not match the hash in the receipt.');

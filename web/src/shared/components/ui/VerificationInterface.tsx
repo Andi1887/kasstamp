@@ -4,13 +4,13 @@ import { FileUp, X } from 'lucide-react';
 
 export interface VerificationInterfaceProps {
   // File input
-  fileInputRef: React.RefObject<HTMLInputElement>;
+  fileInputRef: React.RefObject<HTMLInputElement | null>;
   onFileInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onRemoveAttachment: (index: number) => void;
   attachments: File[];
 
   // Receipt input
-  receiptInputRef: React.RefObject<HTMLInputElement>;
+  receiptInputRef: React.RefObject<HTMLInputElement | null>;
   onReceiptInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onRemoveReceipt: () => void;
   receipt: File | null;
