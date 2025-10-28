@@ -6,18 +6,14 @@
 
 import { Button } from '@/shared/components/ui/Button';
 import { Dialog, DialogContent } from '@/shared/components/ui/Dialog';
-import type { StampingReceipt } from '@kasstamp/sdk';
+import type { AugmentedReceipt } from '@/features/stamping/types';
 import { formatTimestampForFilename } from '../utils';
 import { formatExactAmount } from '@/shared/utils/formatBalance';
 import { QRCodeSVG } from 'qrcode.react';
 import { useRef, useState, useEffect } from 'react';
-import { Check, Share2, Link, QrCode, Hash } from 'lucide-react';
+import { Check, Share2, Link, QrCode } from 'lucide-react';
 import pako from 'pako';
 import { pageLogger } from '@/core/utils/logger';
-
-interface AugmentedReceipt extends StampingReceipt {
-  originalFileSize?: number;
-}
 
 interface ReceiptSuccessDialogProps {
   receipt: AugmentedReceipt | AugmentedReceipt[] | null;
@@ -36,17 +32,10 @@ function prettyBytes(n?: number) {
   return `${v.toFixed(1)} ${units[i]}`;
 }
 
-function ReceiptItem({
-  receipt,
-  index,
-  isHashOnly,
-}: {
-  receipt: AugmentedReceipt;
-  index?: number;
-  isHashOnly?: boolean;
-}) {
+function ReceiptItem({ receipt, index }: { receipt: AugmentedReceipt; index?: number }) {
   const displaySize = receipt.originalFileSize || receipt.fileSize || 0;
   const isPrivate = receipt.privacy === 'private';
+  const isHashOnly = receipt.privacy === 'hash-only';
   const qrRef = useRef<HTMLDivElement>(null);
   const shareButtonRef = useRef<HTMLButtonElement>(null);
   const shareMenuRef = useRef<HTMLDivElement>(null);
@@ -338,10 +327,10 @@ function ReceiptItem({
             {receipt.fileName ?? '—'}
           </span>
         </div>
-        {isHashOnly && (
+        {isHashOnly && receipt.fileHash && (
           <div className="flex justify-between border-b border-gray-200 py-1 dark:border-gray-700">
             <span className="font-semibold text-gray-700 dark:text-gray-300">File Hash</span>
-            <span className="max-w-[60%] truncate text-right text-gray-900 dark:text-gray-100">
+            <span className="max-w-[60%] whitespace-pre-wrap break-all text-right text-gray-900 dark:text-gray-100">
               {receipt.fileHash}
             </span>
           </div>
@@ -361,7 +350,7 @@ function ReceiptItem({
                   : 'text-blue-600 dark:text-blue-400'
             }`}
           >
-            {isPrivate ? '🔒 Private' : isHashOnly ? ' hashed' : '🌐 Public'}
+            {isPrivate ? '🔒 Private' : isHashOnly ? 'Hash Only' : '🌐 Public'}
           </span>
         </div>
         <div className="flex justify-between border-b border-gray-200 py-1 dark:border-gray-700">
@@ -380,7 +369,7 @@ function ReceiptItem({
             {formatExactAmount(receipt.totalCostKAS)}
           </span>
         </div>
-        {isHashOnly && (
+        {isHashOnly && receipt.transactionIds.length > 0 && (
           <div className="flex justify-between border-t border-gray-200 py-1 dark:border-gray-700">
             <span className="font-semibold text-gray-700 dark:text-gray-300">Transaction ID</span>
             <span className="max-w-[60%] truncate text-right text-gray-900 dark:text-gray-100">
@@ -500,9 +489,6 @@ function ReceiptItem({
 }
 
 export default function ReceiptSuccessDialog({ receipt, onClose }: ReceiptSuccessDialogProps) {
-  const isHashOnly = Array.isArray(receipt)
-    ? receipt[0]?.privacy === 'hash-only'
-    : receipt?.privacy === 'hash-only';
   return (
     <Dialog
       open={!!receipt}
@@ -515,7 +501,7 @@ export default function ReceiptSuccessDialog({ receipt, onClose }: ReceiptSucces
         {Array.isArray(receipt) ? (
           <div className="grid gap-3">
             {receipt.map((r, index) => (
-              <ReceiptItem key={r.id} receipt={r} index={index} isHashOnly={isHashOnly} />
+              <ReceiptItem key={r.id} receipt={r} index={index} />
             ))}
             <div className="mt-4 border-t border-gray-200 pt-3 dark:border-gray-700">
               <Button

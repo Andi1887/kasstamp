@@ -2,8 +2,9 @@ import React from 'react';
 import { Button } from './Button';
 import { Toggle } from './Toggle';
 import { Tooltip } from './Tooltip';
-import { FileUp, Lock, X, ArrowUp, Loader2, Zap, Plus, QrCode, Hash } from 'lucide-react';
-import { SelectTabs, SelectTabsOption } from './SelectTabs';
+import { FileUp, X, ArrowUp, Loader2, Zap, Plus, QrCode } from 'lucide-react';
+import { SelectTabs } from './SelectTabs';
+import type { SelectTabsOption } from './SelectTabs';
 import type { PrivacyMode } from '@/features/stamping/types';
 
 const modeOptions: SelectTabsOption[] = [

@@ -7,8 +7,7 @@
 import { walletService } from '@/features/wallet/services';
 import type { ProcessingResult, StampingReceipt } from '@kasstamp/sdk';
 import { stampingLogger } from '@/core/utils/logger';
-
-export type StampingModeWeb = 'public' | 'private';
+import type { PrivacyMode } from '../types';
 
 export interface StampingEstimation {
   originalSize: number;
@@ -22,7 +21,7 @@ export interface StampingEstimation {
 }
 
 export interface StampingOptions {
-  mode: StampingModeWeb;
+  mode: PrivacyMode;
   compression?: boolean;
   mnemonic?: string;
   priorityFee: bigint; // Priority fee in sompi (calculated from isPriority toggle)
@@ -71,7 +70,7 @@ export async function estimateMultipleArtifacts(
         const sdkEstimation = await sdk.estimateStampingWithFallback(
           file,
           {
-            mode: options.mode === 'public' ? 'public' : 'private',
+            mode: options.mode === 'private' ? 'private' : 'public',
             compression: options.compression || false,
             priorityFee: options.priorityFee,
           },
@@ -121,7 +120,7 @@ export async function estimateMultipleArtifacts(
         const sdkEstimation = await sdk.estimateStampingWithFallback(
           tempFile,
           {
-            mode: options.mode === 'public' ? 'public' : 'private',
+            mode: options.mode === 'private' ? 'private' : 'public',
             compression: options.compression || false,
             priorityFee: options.priorityFee,
           },
@@ -215,7 +214,7 @@ export async function estimateFileStamping(
     const sdkEstimation = await sdk.estimateStampingWithFallback(
       file,
       {
-        mode: options.mode === 'public' ? 'public' : 'private',
+        mode: options.mode === 'private' ? 'private' : 'public',
         compression: options.compression || false,
         priorityFee: options.priorityFee,
       },

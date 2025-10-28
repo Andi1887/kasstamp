@@ -1,7 +1,7 @@
 /**
  * @fileoverview Stamping Feature Type Definitions (UI-specific only)
  */
-
+import type { StampingReceipt } from '@kasstamp/sdk';
 import type { StampingEstimation } from '../services';
 import type { ArtifactFingerprint } from '../utils';
 
@@ -15,10 +15,10 @@ export interface CachedEstimation {
   timestamp: number;
 }
 
-// Augmented receipt with UI metadata
-export interface AugmentedReceipt {
-  receipt: unknown; // Receipt from SDK
+// Augmented receipt with UI metadata, extending the SDK's receipt
+export interface AugmentedReceipt extends StampingReceipt {
   filename?: string;
-  timestamp?: string;
   mode?: PrivacyMode;
+  fileHash?: string;
+  originalFileSize?: number;
 }

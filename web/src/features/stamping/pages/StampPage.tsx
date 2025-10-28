@@ -21,17 +21,12 @@ import {
   QRScannerDialog,
 } from '../components';
 import WalletManagementDialog from '@/features/wallet/components/WalletManagementDialog';
-import type { PrivacyMode } from '../types';
+import type { PrivacyMode, AugmentedReceipt } from '../types';
 import pako from 'pako';
 
-// Augmented receipt with original file size (for private mode where fileSize is 0)
-type AugmentedReceipt = StampingReceipt & {
-  originalFileSize?: number;
-};
-
 // Helper function to compute SHA256 hash of a file
-async function computeSHA256(file: File): Promise<string> {
-  const buffer = await file.arrayBuffer();
+async function computeSHA256(blob: Blob): Promise<string> {
+  const buffer = await blob.arrayBuffer();
   const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
@@ -463,73 +458,79 @@ export default function StampPage() {
       // Calculate priority fee once based on toggle state
       const priorityFee = isPriority ? APP_CONFIG.priorityFeeSompi : 0n;
 
-      // Use multi-artifact stamping - each artifact gets its own receipt
-      // Only pass walletSecret/mnemonic if enclave was locked (they'll be empty otherwise)
-      // NOTE: We no longer pass mnemonic - it's handled by the wallet's secure enclave!
-      const result =
-        mode === 'hash-only'
-          ? await (async () => {
-              const hashAttachments = await Promise.all(
-                fileUpload.attachments.map(async (file) => ({
-                  content: await computeSHA256(file),
-                  name: file.name,
-                })),
-              );
-              const textHash = text.trim() ? await computeSHA256(new Blob([text])) : null;
-              const hashText = text.trim()
-                ? `SHA256(${text.trim()}) = ${textHash}`
-                : '';
-              return await stampMultipleArtifacts(
-                [],
-                hashAttachments
-                  .map((h) => `SHA256(${h.name}) = ${h.content}`)
-                  .join('\n') +
-                  (hashText ? `\n${hashText}` : ''),
-                {
-                  mode: 'public',
-                  compression: false,
-                  priorityFee,
-                },
-              );
-            })()
-          : await stampMultipleArtifacts(
-              fileUpload.attachments,
-              text,
-              {
-                mode,
-                compression: false,
-                priorityFee,
-              },
-            );
+      if (mode === 'hash-only') {
+        const hashAttachments = await Promise.all(
+          fileUpload.attachments.map(async (file) => ({
+            content: await computeSHA256(file),
+            name: file.name,
+          })),
+        );
+        const textBlob = text.trim() ? new Blob([text.trim()], { type: 'text/plain' }) : null;
+        const textHash = textBlob ? await computeSHA256(textBlob) : null;
 
-      setProgress(90);
+        const hashLines = [
+          ...hashAttachments.map((h) => `SHA256(${h.name}) = ${h.content}`),
+          ...(textHash ? [`SHA256(text-input.txt) = ${textHash}`] : []),
+        ];
 
-      // Augment receipts with original file sizes (important for private mode where fileSize is 0)
-      const augmentedReceipts = result.receipts.map((receipt, index) => {
-        // For file receipts, get original size from attachments
-        if (index < fileUpload.attachments.length) {
-          return { ...receipt, originalFileSize: fileUpload.attachments[index].size };
-        }
-        // For text receipt, calculate size
-        if (hasText && index === result.receipts.length - 1) {
-          const textSize = new Blob([text]).size;
-          return { ...receipt, originalFileSize: textSize };
-        }
-        return receipt;
-      });
+        const result = await stampMultipleArtifacts(
+          [],
+          hashLines.join('\n'),
+          { mode: 'public', compression: false, priorityFee },
+        );
 
-      // Set the receipts (array of receipts, one per artifact)
-      setReceipt(augmentedReceipts.length === 1 ? augmentedReceipts[0] : augmentedReceipts);
+        const newReceipts: AugmentedReceipt[] = result.receipts.map((sdkReceipt) => {
+          // Since all hashes are combined into one transaction, we create a
+          // single receipt that lists all the hashes.
+          const allHashes = [
+            ...hashAttachments.map(item => ({ filename: item.name, hash: item.content })),
+            ...(textHash ? [{ filename: 'text-input.txt', hash: textHash }] : [])
+          ];
+
+          return {
+            ...sdkReceipt,
+            privacy: 'hash-only',
+            fileName: allHashes.map(h => h.filename).join(', '),
+            fileHash: allHashes.map(h => `${h.filename}: ${h.hash}`).join('\n'),
+            originalFileSize: 0,
+          };
+        });
+
+        setReceipt(newReceipts.length === 1 ? newReceipts[0] : newReceipts);
+
+      } else {
+        const result = await stampMultipleArtifacts(
+          fileUpload.attachments,
+          text,
+          {
+            mode,
+            compression: false,
+            priorityFee,
+          },
+        );
+        const augmentedReceipts = result.receipts.map((receipt, index) => {
+          if (index < fileUpload.attachments.length) {
+            return { ...receipt, originalFileSize: fileUpload.attachments[index].size };
+          }
+          if (hasText && index === result.receipts.length - 1) {
+            const textSize = new Blob([text]).size;
+            return { ...receipt, originalFileSize: textSize };
+          }
+          return receipt;
+        });
+
+        setReceipt(augmentedReceipts.length === 1 ? augmentedReceipts[0] : augmentedReceipts);
+      }
+
       setProgress(100);
 
       // Clear the form after successful stamping
       fileUpload.clearAttachments();
       setText('');
       estimation.clearEstimation();
-      // No need to trigger estimation here since we're clearing everything
 
       pageLogger.info(
-        `✅ All artifacts stamped successfully! Total receipts: ${result.receipts.length}`,
+        `✅ All artifacts stamped successfully!`,
       );
     } catch (error) {
       setError('Stamping failed: ' + (error as Error).message);
