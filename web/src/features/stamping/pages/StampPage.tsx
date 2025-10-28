@@ -29,6 +29,14 @@ type AugmentedReceipt = StampingReceipt & {
   originalFileSize?: number;
 };
 
+// Helper function to compute SHA256 hash of a file
+async function computeSHA256(file: File): Promise<string> {
+  const buffer = await file.arrayBuffer();
+  const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
 // formatTimestampForFilename is now imported from ../utils
 
 export default function StampPage() {
@@ -38,7 +46,9 @@ export default function StampPage() {
   const [mode, setMode] = useState<PrivacyMode>(() => {
     try {
       const stored = localStorage.getItem('kasstamp_mode');
-      return stored === 'private' || stored === 'public' ? (stored as PrivacyMode) : 'public';
+      return stored === 'private' || stored === 'public' || stored === 'hash-only'
+        ? (stored as PrivacyMode)
+        : 'public';
     } catch {
       return 'public';
     }
@@ -456,12 +466,41 @@ export default function StampPage() {
       // Use multi-artifact stamping - each artifact gets its own receipt
       // Only pass walletSecret/mnemonic if enclave was locked (they'll be empty otherwise)
       // NOTE: We no longer pass mnemonic - it's handled by the wallet's secure enclave!
-      const result = await stampMultipleArtifacts(
-        fileUpload.attachments,
-        text,
-        { mode, compression: false, priorityFee },
-        // walletSecret and mnemonic are legacy parameters - enclave handles signing now
-      );
+      const result =
+        mode === 'hash-only'
+          ? await (async () => {
+              const hashAttachments = await Promise.all(
+                fileUpload.attachments.map(async (file) => ({
+                  content: await computeSHA256(file),
+                  name: file.name,
+                })),
+              );
+              const textHash = text.trim() ? await computeSHA256(new Blob([text])) : null;
+              const hashText = text.trim()
+                ? `SHA256(${text.trim()}) = ${textHash}`
+                : '';
+              return await stampMultipleArtifacts(
+                [],
+                hashAttachments
+                  .map((h) => `SHA256(${h.name}) = ${h.content}`)
+                  .join('\n') +
+                  (hashText ? `\n${hashText}` : ''),
+                {
+                  mode: 'public',
+                  compression: false,
+                  priorityFee,
+                },
+              );
+            })()
+          : await stampMultipleArtifacts(
+              fileUpload.attachments,
+              text,
+              {
+                mode,
+                compression: false,
+                priorityFee,
+              },
+            );
 
       setProgress(90);
 

@@ -6,6 +6,14 @@
 
 import { useState, useRef, useCallback } from 'react';
 import { flushSync } from 'react-dom';
+
+// Helper function to compute SHA256 hash of a file
+async function computeSHA256(file: File): Promise<string> {
+  const buffer = await file.arrayBuffer();
+  const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+}
 import { pageLogger } from '@/core/utils/logger';
 import { APP_CONFIG } from '@/features/wallet/constants';
 import type { StampingEstimation } from '../services';
@@ -171,34 +179,64 @@ export function useEstimation({ mode, isPriority, isConnected, hasWallet }: UseE
             pageLogger.info('⚠️ Wallet not connected, SDK will use fallback estimation');
             const priorityFee = isPriority ? APP_CONFIG.priorityFeeSompi : 0n;
 
-            for (const file of artifactsToCalculate.files) {
-              try {
-                const fileEstimation = await estimateMultipleArtifacts([file], '', {
-                  mode,
+            if (mode === 'hash-only') {
+              const hashAttachments = await Promise.all(
+                artifactsToCalculate.files.map(async (file) => ({
+                  content: await computeSHA256(file),
+                  name: file.name,
+                })),
+              );
+              const textHash = artifactsToCalculate.text
+                ? await computeSHA256(new Blob([artifactsToCalculate.text]))
+                : null;
+              const hashText = artifactsToCalculate.text
+                ? `SHA256(${artifactsToCalculate.text}) = ${textHash}`
+                : '';
+              const estimation = await estimateMultipleArtifacts(
+                [],
+                hashAttachments
+                  .map((h) => `SHA256(${h.name}) = ${h.content}`)
+                  .join('\n') +
+                  (hashText ? `\n${hashText}` : ''),
+                {
+                  mode: 'public',
                   compression: false,
                   priorityFee,
-                });
-                if (fileEstimation) {
-                  newEstimations.push(fileEstimation);
-                }
-              } catch (error) {
-                pageLogger.warn(`Failed to estimate file ${file.name}:`, error as Error);
-                // Skip this file
+                },
+              );
+              if (estimation) {
+                newEstimations.push(estimation);
               }
-            }
-            if (artifactsToCalculate.text) {
-              try {
-                const textEstimation = await estimateMultipleArtifacts(
-                  [],
-                  artifactsToCalculate.text,
-                  { mode, compression: false, priorityFee }
-                );
-                if (textEstimation) {
-                  newEstimations.push(textEstimation);
+            } else {
+              for (const file of artifactsToCalculate.files) {
+                try {
+                  const fileEstimation = await estimateMultipleArtifacts([file], '', {
+                    mode,
+                    compression: false,
+                    priorityFee,
+                  });
+                  if (fileEstimation) {
+                    newEstimations.push(fileEstimation);
+                  }
+                } catch (error) {
+                  pageLogger.warn(`Failed to estimate file ${file.name}:`, error as Error);
+                  // Skip this file
                 }
-              } catch (error) {
-                pageLogger.warn(`Failed to estimate text:`, error as Error);
-                // Skip text
+              }
+              if (artifactsToCalculate.text) {
+                try {
+                  const textEstimation = await estimateMultipleArtifacts(
+                    [],
+                    artifactsToCalculate.text,
+                    { mode, compression: false, priorityFee },
+                  );
+                  if (textEstimation) {
+                    newEstimations.push(textEstimation);
+                  }
+                } catch (error) {
+                  pageLogger.warn(`Failed to estimate text:`, error as Error);
+                  // Skip text
+                }
               }
             }
           }

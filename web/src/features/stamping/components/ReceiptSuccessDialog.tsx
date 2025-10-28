@@ -11,7 +11,7 @@ import { formatTimestampForFilename } from '../utils';
 import { formatExactAmount } from '@/shared/utils/formatBalance';
 import { QRCodeSVG } from 'qrcode.react';
 import { useRef, useState, useEffect } from 'react';
-import { Check, Share2, Link, QrCode } from 'lucide-react';
+import { Check, Share2, Link, QrCode, Hash } from 'lucide-react';
 import pako from 'pako';
 import { pageLogger } from '@/core/utils/logger';
 
@@ -36,7 +36,15 @@ function prettyBytes(n?: number) {
   return `${v.toFixed(1)} ${units[i]}`;
 }
 
-function ReceiptItem({ receipt, index }: { receipt: AugmentedReceipt; index?: number }) {
+function ReceiptItem({
+  receipt,
+  index,
+  isHashOnly,
+}: {
+  receipt: AugmentedReceipt;
+  index?: number;
+  isHashOnly?: boolean;
+}) {
   const displaySize = receipt.originalFileSize || receipt.fileSize || 0;
   const isPrivate = receipt.privacy === 'private';
   const qrRef = useRef<HTMLDivElement>(null);
@@ -330,6 +338,14 @@ function ReceiptItem({ receipt, index }: { receipt: AugmentedReceipt; index?: nu
             {receipt.fileName ?? '—'}
           </span>
         </div>
+        {isHashOnly && (
+          <div className="flex justify-between border-b border-gray-200 py-1 dark:border-gray-700">
+            <span className="font-semibold text-gray-700 dark:text-gray-300">File Hash</span>
+            <span className="max-w-[60%] truncate text-right text-gray-900 dark:text-gray-100">
+              {receipt.fileHash}
+            </span>
+          </div>
+        )}
         <div className="flex justify-between border-b border-gray-200 py-1 dark:border-gray-700">
           <span className="font-semibold text-gray-700 dark:text-gray-300">File Size</span>
           <span className="text-gray-900 dark:text-gray-100">{prettyBytes(displaySize)}</span>
@@ -337,9 +353,15 @@ function ReceiptItem({ receipt, index }: { receipt: AugmentedReceipt; index?: nu
         <div className="flex justify-between border-b border-gray-200 py-1 dark:border-gray-700">
           <span className="font-semibold text-gray-700 dark:text-gray-300">Privacy Mode</span>
           <span
-            className={`font-medium ${isPrivate ? 'text-purple-600 dark:text-purple-400' : 'text-blue-600 dark:text-blue-400'}`}
+            className={`font-medium ${
+              isPrivate
+                ? 'text-purple-600 dark:text-purple-400'
+                : isHashOnly
+                  ? 'text-teal-600 dark:text-teal-400'
+                  : 'text-blue-600 dark:text-blue-400'
+            }`}
           >
-            {isPrivate ? '🔒 Private' : '🌐 Public'}
+            {isPrivate ? '🔒 Private' : isHashOnly ? ' hashed' : '🌐 Public'}
           </span>
         </div>
         <div className="flex justify-between border-b border-gray-200 py-1 dark:border-gray-700">
@@ -358,6 +380,14 @@ function ReceiptItem({ receipt, index }: { receipt: AugmentedReceipt; index?: nu
             {formatExactAmount(receipt.totalCostKAS)}
           </span>
         </div>
+        {isHashOnly && (
+          <div className="flex justify-between border-t border-gray-200 py-1 dark:border-gray-700">
+            <span className="font-semibold text-gray-700 dark:text-gray-300">Transaction ID</span>
+            <span className="max-w-[60%] truncate text-right text-gray-900 dark:text-gray-100">
+              {receipt.transactionIds[0]}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* QR Code Section - only show if receipt is small enough */}
@@ -470,6 +500,9 @@ function ReceiptItem({ receipt, index }: { receipt: AugmentedReceipt; index?: nu
 }
 
 export default function ReceiptSuccessDialog({ receipt, onClose }: ReceiptSuccessDialogProps) {
+  const isHashOnly = Array.isArray(receipt)
+    ? receipt[0]?.privacy === 'hash-only'
+    : receipt?.privacy === 'hash-only';
   return (
     <Dialog
       open={!!receipt}
@@ -482,7 +515,7 @@ export default function ReceiptSuccessDialog({ receipt, onClose }: ReceiptSucces
         {Array.isArray(receipt) ? (
           <div className="grid gap-3">
             {receipt.map((r, index) => (
-              <ReceiptItem key={r.id} receipt={r} index={index} />
+              <ReceiptItem key={r.id} receipt={r} index={index} isHashOnly={isHashOnly} />
             ))}
             <div className="mt-4 border-t border-gray-200 pt-3 dark:border-gray-700">
               <Button

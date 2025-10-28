@@ -1,8 +1,16 @@
 import React from 'react';
-import {Button} from './Button';
-import {Toggle} from './Toggle';
-import {Tooltip} from './Tooltip';
-import {FileUp, Lock, X, ArrowUp, Loader2, Zap, Plus, QrCode} from 'lucide-react';
+import { Button } from './Button';
+import { Toggle } from './Toggle';
+import { Tooltip } from './Tooltip';
+import { FileUp, Lock, X, ArrowUp, Loader2, Zap, Plus, QrCode, Hash } from 'lucide-react';
+import { SelectTabs, SelectTabsOption } from './SelectTabs';
+import type { PrivacyMode } from '@/features/stamping/types';
+
+const modeOptions: SelectTabsOption[] = [
+  { value: 'public', label: 'Public' },
+  { value: 'private', label: 'Private' },
+  { value: 'hash-only', label: 'Hash Only' },
+];
 
 export interface ContentInterfaceProps {
   // Text
@@ -30,8 +38,8 @@ export interface ContentInterfaceProps {
   onScanQR?: () => void;
 
   // Privacy toggle
-  mode: 'private' | 'public';
-  onModeChange: (next: 'private' | 'public') => void;
+  mode: PrivacyMode;
+  onModeChange: (next: PrivacyMode) => void;
 
   // Priority toggle
   isPriority: boolean;
@@ -170,15 +178,21 @@ export function ContentInterface(props: ContentInterfaceProps) {
             )}
           </div>
           <div className="flex flex-shrink-0 items-center justify-end gap-1.5 sm:gap-3">
-            <Tooltip content="Encrypted by your private wallet" side="top">
-              <Toggle
-                size="sm"
-                className="px-2 py-1.5 text-xs sm:px-3 sm:py-2 sm:text-base [&_.toggle]:h-5 [&_.toggle]:w-9 sm:[&_.toggle]:h-6 sm:[&_.toggle]:w-11 [&_.toggle-indicator]:h-4 [&_.toggle-indicator]:w-4 sm:[&_.toggle-indicator]:h-5 sm:[&_.toggle-indicator]:w-5"
-                label={<span className="hidden text-sm sm:inline sm:text-base">Private</span>}
-                prefix={<Lock className="h-4 w-4"/>}
-                checked={mode === 'private'}
-                onCheckedChange={(v: boolean) => onModeChange(v ? 'private' : 'public')}
-                aria-label="Toggle private mode"
+            <Tooltip
+              content={
+                mode === 'private'
+                  ? 'Encrypted by your private wallet'
+                  : mode === 'hash-only'
+                    ? 'Only the SHA-256 hash of the file is uploaded'
+                    : 'Your data is publicly visible on the blockchain'
+              }
+              side="top"
+            >
+              <SelectTabs
+                options={modeOptions}
+                value={mode}
+                onChange={(v) => onModeChange(v as PrivacyMode)}
+                className="h-10 w-auto"
               />
             </Tooltip>
             <Tooltip content="Priority transaction with higher fees" side="top">
