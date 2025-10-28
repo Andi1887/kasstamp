@@ -576,7 +576,13 @@ export default function StampPage() {
       if (!sdk) {
         throw new Error('SDK not initialized');
       }
-      const reconstructed = await sdk.reconstructFile(receiptData, null);
+
+      const compliantReceipt: StampingReceipt = {
+        ...receiptData,
+        privacy: receiptData.privacy === 'hash-only' ? 'public' : receiptData.privacy,
+      };
+
+      const reconstructed = await sdk.reconstructFile(compliantReceipt, null);
       const reconstructedText = new TextDecoder().decode(reconstructed.data);
 
       if (reconstructedText.includes(fileHash)) {
