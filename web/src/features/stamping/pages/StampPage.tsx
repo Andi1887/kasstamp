@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useState, useEffect, useCallback } from 'react';
 import { ContentInterface } from '@/shared/components/ui/ContentInterface';
+import { VerificationInterface } from '@/shared/components/ui/VerificationInterface';
 import { Button } from '@/shared/components/ui/Button';
 import { walletService } from '@/features/wallet/services';
 import { APP_CONFIG } from '@/features/wallet/constants';
@@ -7,7 +8,7 @@ import { formatExactAmount } from '@/shared/utils/formatBalance';
 import { useWallet } from '@/shared/hooks/useWallet';
 import { pageLogger } from '@/core/utils/logger';
 import { stampMultipleArtifacts } from '../services';
-import type { StampingReceipt } from '@kasstamp/sdk';
+import { StampingReceipt } from '@kasstamp/sdk';
 import {
   useEstimation,
   useFileUpload,
@@ -80,6 +81,14 @@ export default function StampPage() {
   });
   const receiptPreview = useReceiptPreview();
   const qrScanner = useQRScanner();
+
+  // Verification state
+  const [verificationFile, setVerificationFile] = useState<File | null>(null);
+  const [verificationReceipt, setVerificationReceipt] = useState<File | null>(null);
+  const [verifying, setVerifying] = useState(false);
+  const [verificationResult, setVerificationResult] = useState<string | null>(null);
+  const verificationFileInputRef = useRef<HTMLInputElement>(null);
+  const verificationReceiptInputRef = useRef<HTMLInputElement>(null);
 
   // Helper function to decode receipt from URL or JSON
   const decodeReceipt = useCallback((data: string): StampingReceipt => {
@@ -469,8 +478,8 @@ export default function StampPage() {
         const textHash = textBlob ? await computeSHA256(textBlob) : null;
 
         const hashLines = [
-          ...hashAttachments.map((h) => `SHA256(${h.name}) = ${h.content}`),
-          ...(textHash ? [`SHA256(text-input.txt) = ${textHash}`] : []),
+          ...hashAttachments.map((h) => h.content),
+          ...(textHash ? [textHash] : []),
         ];
 
         const result = await stampMultipleArtifacts(
@@ -480,8 +489,6 @@ export default function StampPage() {
         );
 
         const newReceipts = result.receipts.map((sdkReceipt): AugmentedReceipt => {
-          // Since all hashes are combined into one transaction, we create a
-          // single receipt that lists all the hashes.
           const allHashes = [
             ...hashAttachments.map(item => ({ filename: item.name, hash: item.content })),
             ...(textHash ? [{ filename: 'text-input.txt', hash: textHash }] : [])
@@ -549,6 +556,36 @@ export default function StampPage() {
       setWalletMnemonic('');
     }
   }
+
+  // Verification logic
+  const onVerify = async () => {
+    if (!verificationFile || !verificationReceipt) {
+      setVerificationResult('Please select a file and a receipt.');
+      return;
+    }
+
+    setVerifying(true);
+    setVerificationResult(null);
+
+    try {
+      const fileHash = await computeSHA256(verificationFile);
+      const receiptText = await verificationReceipt.text();
+      const receiptData = decodeReceipt(receiptText);
+
+      const sdk = walletService.getSDK();
+      const reconstructed = await sdk.reconstructFile(receiptData, null);
+
+      if (reconstructed.hash === fileHash) {
+        setVerificationResult(`CONFIRMED: The file hash matches the hash in the receipt. Timestamp: ${new Date(receiptData.timestamp).toLocaleString()}`);
+      } else {
+        setVerificationResult('ERROR: The file hash does not match the hash in the receipt.');
+      }
+    } catch (e) {
+      setVerificationResult(`ERROR: ${(e as Error).message}`);
+    } finally {
+      setVerifying(false);
+    }
+  };
 
   // Debug logging for isEstimating state
   useEffect(() => {
@@ -669,6 +706,30 @@ export default function StampPage() {
                 ? `~ ${formatExactAmount(estimation.estimation.totalCostKAS)}`
                 : '~ 0.000000 KAS'
         }
+      />
+
+      <VerificationInterface
+        fileInputRef={verificationFileInputRef}
+        onFileInputChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) {
+            setVerificationFile(file);
+          }
+        }}
+        onRemoveAttachment={() => setVerificationFile(null)}
+        attachments={verificationFile ? [verificationFile] : []}
+        receiptInputRef={verificationReceiptInputRef}
+        onReceiptInputChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) {
+            setVerificationReceipt(file);
+          }
+        }}
+        onRemoveReceipt={() => setVerificationReceipt(null)}
+        receipt={verificationReceipt}
+        onVerify={onVerify}
+        verifying={verifying}
+        verificationResult={verificationResult}
       />
 
       {error && (

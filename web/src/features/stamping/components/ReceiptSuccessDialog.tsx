@@ -496,7 +496,7 @@ export default function ReceiptSuccessDialog({ receipt, onClose }: ReceiptSucces
         if (!open) onClose();
       }}
     >
-      <DialogContent title="Proof successfully saved" alignTop>
+      <DialogContent title="Proof successfully saved" alignTop className="max-h-[80vh] overflow-y-auto">
         <p className="mb-4 text-gray-600 dark:text-gray-300">This is your receipt. Keep it safe.</p>
         {Array.isArray(receipt) ? (
           <div className="grid gap-3">
